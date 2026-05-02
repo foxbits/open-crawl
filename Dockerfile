@@ -6,7 +6,7 @@ COPY . .
 RUN CGO_ENABLED=0 go build -o /app/proxy ./cmd/proxy
 
 FROM alpine:3.20
-RUN apk add --no-cache ca-certificates
+RUN apk add --no-cache curl ca-certificates
 COPY --from=builder /app/proxy /proxy
 EXPOSE 8080
 ENTRYPOINT ["/proxy"]
