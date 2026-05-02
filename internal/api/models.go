@@ -82,12 +82,7 @@ type MetadataContent struct {
 
 type Crawl4AIRequestBody struct {
 	URLs          []string      `json:"urls"`
-	BrowserConfig BrowserConfig `json:"browser_config"`
 	CrawlerConfig CrawlerConfig `json:"crawler_config"`
-}
-
-type BrowserConfig struct {
-	Headless bool `json:"headless"`
 }
 
 type CrawlerConfig struct {
@@ -95,9 +90,6 @@ type CrawlerConfig struct {
 }
 
 type CrawlerParams struct {
-	Stream            bool               `json:"stream"`
-	CacheMode         string             `json:"cache_mode"`
-	MarkdownGenerator string             `json:"markdown_generator,omitempty"`
 	DeepCrawlStrategy *DeepCrawlStrategy `json:"deep_crawl_strategy,omitempty"`
 }
 

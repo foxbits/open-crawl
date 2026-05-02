@@ -6,15 +6,10 @@ import (
 
 func TavilyRequestToCrawl4AI(req TavilyCrawlRequest) Crawl4AIRequestBody {
 	body := Crawl4AIRequestBody{
-		URLs:          []string{req.URL},
-		BrowserConfig: BrowserConfig{},
+		URLs: []string{req.URL},
 		CrawlerConfig: CrawlerConfig{
 			Params: CrawlerParams{},
 		},
-	}
-
-	if req.Format == "markdown" || req.Format == "" {
-		body.CrawlerConfig.Params.MarkdownGenerator = "generate_markdown"
 	}
 
 	if needsDeepCrawl(req) {
@@ -148,8 +143,7 @@ func BuildFinalResponse(baseURL string, results []TavilyResult, elapsed time.Dur
 
 func TavilyExtractRequestToCrawl4AI(req TavilyExtractRequest, urls []string) Crawl4AIRequestBody {
 	body := Crawl4AIRequestBody{
-		URLs:          urls,
-		BrowserConfig: BrowserConfig{},
+		URLs: urls,
 		CrawlerConfig: CrawlerConfig{
 			Params: CrawlerParams{},
 		},
