@@ -1,5 +1,7 @@
 package api
 
+import "encoding/json"
+
 type TavilyCrawlRequest struct {
 	URL             string   `json:"url"`
 	MaxDepth        int      `json:"max_depth,omitempty"`
@@ -122,4 +124,29 @@ type ErrorDetail struct {
 
 type ErrorResponse struct {
 	Detail ErrorDetail `json:"detail"`
+}
+
+type TavilyExtractRequest struct {
+	URLs            json.RawMessage `json:"urls"`
+	Query           string          `json:"query,omitempty"`
+	ChunksPerSource int             `json:"chunks_per_source,omitempty"`
+	ExtractDepth    string          `json:"extract_depth,omitempty"`
+	IncludeImages   bool            `json:"include_images,omitempty"`
+	IncludeFavicon  bool            `json:"include_favicon,omitempty"`
+	Format          string          `json:"format,omitempty"`
+	Timeout         float64         `json:"timeout,omitempty"`
+	IncludeUsage    bool            `json:"include_usage,omitempty"`
+}
+
+type TavilyExtractResponse struct {
+	Results       []TavilyResult `json:"results"`
+	FailedResults []FailedResult `json:"failed_results"`
+	ResponseTime  float64        `json:"response_time"`
+	Usage         *Usage         `json:"usage,omitempty"`
+	RequestID     string         `json:"request_id"`
+}
+
+type FailedResult struct {
+	URL   string `json:"url"`
+	Error string `json:"error"`
 }

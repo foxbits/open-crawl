@@ -21,6 +21,72 @@ docker run -p 8080:8080 -e CRAWL4AI_BASE_URL=http://host.docker.internal:11235 o
 
 ## Endpoints
 
+### `POST /extract`
+
+Extract raw web page content from one or more specified URLs. Acts as a single-page proxy for Crawl4AI (no crawling breadth/depth parameters).
+
+**Request Body**
+
+| Field | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `urls` | string \| string[] | **Yes** | — | One or more URLs to extract content from (max 20) |
+| `query` | string | No | — | Accepted for API compatibility; not yet used for reranking |
+| `chunks_per_source` | integer | No | — | Accepted for API compatibility; not yet used for chunking |
+| `extract_depth` | string | No | `basic` | `basic` or `advanced` |
+| `include_images` | boolean | No | `false` | Include per-result `images` array |
+| `include_favicon` | boolean | No | `false` | Include favicon URL per result |
+| `format` | string | No | `markdown` | `markdown` or `text` |
+| `timeout` | number | No | — | Max seconds to wait (1.0–60.0) |
+| `include_usage` | boolean | No | `false` | Include credit usage info |
+
+**Response Body** (`application/json`)
+
+| Field | Type | Description |
+|---|---|---|
+| `results` | array | Extracted content per successful URL |
+| `results[].url` | string | Extracted URL |
+| `results[].raw_content` | string | Full content of the page in markdown or text format |
+| `results[].favicon` | string | Favicon URL (if `include_favicon` was `true`) |
+| `results[].images` | array | Image objects extracted from the page (if `include_images` was `true`). Each item: `{"url": "...", "description": "..."}` |
+| `failed_results` | array | URLs that could not be processed; each entry has `url` and `error` |
+| `response_time` | float | Time in seconds to complete the request |
+| `usage` | object | Credit usage info (only if `include_usage` was `true`) |
+| `request_id` | string | Unique request ID |
+
+**Example Request**
+
+```bash
+curl -X POST http://localhost:8080/extract \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer tvly-ignored" \
+  -d '{
+    "urls": ["https://en.wikipedia.org/wiki/Artificial_intelligence"],
+    "include_images": true,
+    "include_favicon": true
+  }'
+```
+
+**Example Response**
+
+```json
+{
+  "results": [
+    {
+      "url": "https://en.wikipedia.org/wiki/Artificial_intelligence",
+      "raw_content": "# Artificial intelligence\n\nArtificial intelligence (AI), in its broadest sense...",
+      "favicon": "https://en.wikipedia.org/static/favicon/wikipedia.ico",
+      "images": [
+        {"url": "https://upload.wikimedia.org/wikipedia/commons/thumb/...", "description": "AI concept"}
+      ]
+    }
+  ],
+  "failed_results": [],
+  "response_time": 1.23,
+  "usage": {"credits": 1},
+  "request_id": "550e8400-e29b-41d4-a716-446655440001"
+}
+```
+
 ### `POST /crawl`
 
 Crawl a website and return extracted content in Tavily-compatible format.

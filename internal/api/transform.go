@@ -6,15 +6,10 @@ import (
 
 func TavilyRequestToCrawl4AI(req TavilyCrawlRequest) Crawl4AIRequestBody {
 	body := Crawl4AIRequestBody{
-		URLs: []string{req.URL},
-		BrowserConfig: BrowserConfig{
-			Headless: true,
-		},
+		URLs:          []string{req.URL},
+		BrowserConfig: BrowserConfig{},
 		CrawlerConfig: CrawlerConfig{
-			Params: CrawlerParams{
-				Stream:    true,
-				CacheMode: "bypass",
-			},
+			Params: CrawlerParams{},
 		},
 	}
 
@@ -143,10 +138,22 @@ func TransformCrawl4AIResult(c4Result Crawl4AIStreamResult, includeFavicon, incl
 
 func BuildFinalResponse(baseURL string, results []TavilyResult, elapsed time.Duration, requestID string) TavilyCrawlResponse {
 	return TavilyCrawlResponse{
-		BaseURL:     baseURL,
-		Results:     results,
+		BaseURL:      baseURL,
+		Results:      results,
 		ResponseTime: elapsed.Seconds(),
-		Usage:       &Usage{Credits: 1},
-		RequestID:   requestID,
+		Usage:        &Usage{Credits: 1},
+		RequestID:    requestID,
 	}
+}
+
+func TavilyExtractRequestToCrawl4AI(req TavilyExtractRequest, urls []string) Crawl4AIRequestBody {
+	body := Crawl4AIRequestBody{
+		URLs:          urls,
+		BrowserConfig: BrowserConfig{},
+		CrawlerConfig: CrawlerConfig{
+			Params: CrawlerParams{},
+		},
+	}
+
+	return body
 }
