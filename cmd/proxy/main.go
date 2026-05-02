@@ -12,10 +12,12 @@ func main() {
 	cfg := config.Load()
 
 	handler := api.NewCrawlHandler(cfg.Crawl4AIBaseURL, cfg.RequestTimeout)
+	extractHandler := api.NewExtractHandler(cfg.Crawl4AIBaseURL, cfg.RequestTimeout)
 	healthHandler := api.NewHealthHandler(cfg.Crawl4AIBaseURL, cfg.RequestTimeout)
 
 	mux := http.NewServeMux()
 	mux.Handle("/crawl", handler)
+	mux.Handle("/extract", extractHandler)
 	mux.Handle("/health", healthHandler)
 
 	log.Printf("Starting Open Crawl Proxy on %s", cfg.ListenAddr)
