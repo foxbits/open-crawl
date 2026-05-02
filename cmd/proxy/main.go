@@ -11,10 +11,12 @@ import (
 func main() {
 	cfg := config.Load()
 
-	handler := api.NewHandler(cfg.Crawl4AIBaseURL, cfg.RequestTimeout)
+	handler := api.NewCrawlHandler(cfg.Crawl4AIBaseURL, cfg.RequestTimeout)
+	healthHandler := api.NewHealthHandler(cfg.Crawl4AIBaseURL, cfg.RequestTimeout)
 
 	mux := http.NewServeMux()
 	mux.Handle("/crawl", handler)
+	mux.Handle("/health", healthHandler)
 
 	log.Printf("Starting Open Crawl Proxy on %s", cfg.ListenAddr)
 	log.Printf("Crawl4AI base URL: %s", cfg.Crawl4AIBaseURL)
