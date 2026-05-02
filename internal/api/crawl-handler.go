@@ -57,7 +57,10 @@ func (h *CrawlHandler) handleCrawl(w http.ResponseWriter, r *http.Request) {
 	requestID := generateRequestID()
 	startTime := time.Now()
 
+	log.Printf("[DEBUG] Crawl started: requestID=%s params=%+v", requestID, req)
+
 	crawlReq := TavilyRequestToCrawl4AI(req)
+	log.Printf("[DEBUG] Crawl4AI request: requestID=%s crawl4ai_params=%+v", requestID, crawlReq)
 
 	jsonReq, err := json.Marshal(crawlReq)
 	if err != nil {
@@ -110,8 +113,14 @@ func (h *CrawlHandler) handleCrawl(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
-		if !c4Result.Success {
-			log.Printf("Crawl failed for %s: %s", c4Result.URL, c4Result.ErrorMessage)
+		log.Printf("DEBUG crawl4ai result streamed: url=%q success=%v completed=%q error=%q", c4Result.URL, c4Result.Success, c4Result.Status, c4Result.ErrorMessage)
+
+		if !c4Result.Success && c4Result.Status != "completed" {
+			url := c4Result.URL
+			if url == "" {
+				url = "(unknown URL)"
+			}
+			log.Printf("Crawl failed for %s: %s", url, c4Result.ErrorMessage)
 			continue
 		}
 
@@ -124,6 +133,9 @@ func (h *CrawlHandler) handleCrawl(w http.ResponseWriter, r *http.Request) {
 	}
 
 	elapsed := time.Since(startTime)
+	log.Printf("[DEBUG] Crawl completed: requestID=%s url=%q links_crawled=%d elapsed_ms=%d",
+		requestID, req.URL, len(results), elapsed.Milliseconds())
+
 	response := BuildFinalResponse(req.URL, results, elapsed, requestID)
 
 	w.Header().Set("Content-Type", "application/json")
