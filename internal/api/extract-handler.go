@@ -2,108 +2,67 @@ package api
 
 import (
 	"bufio"
-	"context"
 	"encoding/json"
 	"io"
 	"log"
 	"net/http"
-	"strings"
 	"time"
 )
 
 type ExtractHandler struct {
-	crawl4aiBaseURL string
-	httpClient      *http.Client
+	*BaseHandler
 }
 
 func NewExtractHandler(crawl4aiBaseURL string, timeout time.Duration) *ExtractHandler {
 	return &ExtractHandler{
-		crawl4aiBaseURL: crawl4aiBaseURL,
-		httpClient: &http.Client{
-			Timeout: timeout,
-		},
+		BaseHandler: NewBaseHandler(crawl4aiBaseURL, timeout),
 	}
 }
 
-func (h *ExtractHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if r.Method == http.MethodPost && r.URL.Path == "/extract" {
-		h.handleExtract(w, r)
-		return
-	}
-	http.NotFound(w, r)
+func (h *ExtractHandler) path() string {
+	return "/extract"
 }
 
-func (h *ExtractHandler) handleExtract(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
+func (h *ExtractHandler) operationName() string {
+	return "Extract"
+}
 
-	var req TavilyExtractRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		sendError(w, http.StatusBadRequest, "Invalid JSON body")
-		return
-	}
-
-	urls, err := parseURLs(req.URLs)
-	if err != nil {
-		sendError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-
-	if len(urls) == 0 {
-		sendError(w, http.StatusBadRequest, "[400] urls field is required")
-		return
-	}
-
-	_ = r.Header.Get("Authorization")
-
-	requestID := generateRequestID()
-	startTime := time.Now()
-
-	log.Printf("[DEBUG] Extract started: requestID=%s url_count=%d params=%+v", requestID, len(urls), req)
-
-	crawlReq := TavilyExtractRequestToCrawl4AI(req, urls)
-	log.Printf("[DEBUG] Extract Crawl4AI request: requestID=%s crawl4ai_params=%+v", requestID, crawlReq)
-
-	jsonReq, err := json.Marshal(crawlReq)
-	if err != nil {
-		sendError(w, http.StatusInternalServerError, "Failed to transform request")
-		return
-	}
-
-	timeout := h.httpClient.Timeout
-	if req.Timeout > 0 && time.Duration(req.Timeout)*time.Second < timeout {
-		timeout = time.Duration(req.Timeout) * time.Second
-	}
-
-	ctx, cancel := context.WithTimeout(r.Context(), timeout)
-	defer cancel()
-
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, h.crawl4aiBaseURL+"/crawl/stream", strings.NewReader(string(jsonReq)))
-	if err != nil {
-		sendError(w, http.StatusInternalServerError, "Failed to create request")
-		return
-	}
-	httpReq.Header.Set("Content-Type", "application/json")
-
-	resp, err := h.httpClient.Do(httpReq)
-	if err != nil {
-		if ctx.Err() == context.DeadlineExceeded {
-			sendError(w, http.StatusGatewayTimeout, "Crawl4AI upstream timeout")
-			return
+func (h *ExtractHandler) getRequestValidator() requestValidator {
+	return func(r *http.Request) (interface{}, error) {
+		var req TavilyExtractRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			return nil, &ValidationError{Message: "Invalid JSON body"}
 		}
-		sendError(w, http.StatusBadGateway, "Crawl4AI server unreachable")
-		return
-	}
-	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
-		sendError(w, resp.StatusCode, string(body))
-		return
-	}
+		urls, err := parseURLs(req.URLs)
+		if err != nil {
+			return nil, &ValidationError{Message: err.Error()}
+		}
 
+		if len(urls) == 0 {
+			return nil, &ValidationError{Message: "[400] urls field is required"}
+		}
+
+		return &extractRequestData{req, urls}, nil
+	}
+}
+
+func (h *ExtractHandler) transformRequest(reqInterface interface{}) (Crawl4AIRequestBody, []string) {
+	data := reqInterface.(*extractRequestData)
+	return TavilyExtractRequestToCrawl4AI(data.req, data.urls), data.urls
+}
+
+func (h *ExtractHandler) getTimeout(reqInterface interface{}) time.Duration {
+	data := reqInterface.(*extractRequestData)
+	timeout := h.httpClient.Timeout
+	if data.req.Timeout > 0 && time.Duration(data.req.Timeout)*time.Second < timeout {
+		timeout = time.Duration(data.req.Timeout) * time.Second
+	}
+	return timeout
+}
+
+func (h *ExtractHandler) processStreamResults(resp *http.Response, reqInterface interface{}) ([]TavilyResult, []FailedResult) {
+	_ = reqInterface.(*extractRequestData)
 	var results []TavilyResult
 	var failedResults []FailedResult
 	scanner := bufio.NewScanner(resp.Body)
@@ -133,7 +92,7 @@ func (h *ExtractHandler) handleExtract(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
-		tavilyResult := TransformCrawl4AIResult(c4Result, req.IncludeFavicon, req.IncludeImages)
+		tavilyResult := h.transformResult(c4Result, reqInterface)
 		results = append(results, tavilyResult)
 	}
 
@@ -141,10 +100,21 @@ func (h *ExtractHandler) handleExtract(w http.ResponseWriter, r *http.Request) {
 		log.Printf("Warning: scanner error: %v", err)
 	}
 
-	elapsed := time.Since(startTime)
-	log.Printf("[DEBUG] Extract completed: requestID=%s results=%d failed=%d elapsed_ms=%d",
-		requestID, len(results), len(failedResults), elapsed.Milliseconds())
+	return results, failedResults
+}
 
+func (h *ExtractHandler) transformResult(c4Result Crawl4AIStreamResult, reqInterface interface{}) TavilyResult {
+	data := reqInterface.(*extractRequestData)
+	return TransformCrawl4AIResult(c4Result, data.req.IncludeFavicon, data.req.IncludeImages)
+}
+
+func (h *ExtractHandler) logCompletion(requestID string, reqInterface interface{}, resultCount, failedCount int, elapsed time.Duration) {
+	log.Printf("[DEBUG] Extract completed: requestID=%s results=%d failed=%d elapsed_ms=%d",
+		requestID, resultCount, failedCount, elapsed.Milliseconds())
+}
+
+func (h *ExtractHandler) writeResponse(w http.ResponseWriter, reqInterface interface{}, results []TavilyResult, failedResults []FailedResult, elapsed time.Duration, requestID string) {
+	data := reqInterface.(*extractRequestData)
 	response := TavilyExtractResponse{
 		Results:       results,
 		FailedResults: failedResults,
@@ -152,12 +122,17 @@ func (h *ExtractHandler) handleExtract(w http.ResponseWriter, r *http.Request) {
 		RequestID:     requestID,
 	}
 
-	if req.IncludeUsage {
+	if data.req.IncludeUsage {
 		response.Usage = &Usage{Credits: calculateCredits(len(results))}
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
+}
+
+type extractRequestData struct {
+	req  TavilyExtractRequest
+	urls []string
 }
 
 func parseURLs(raw json.RawMessage) ([]string, error) {
