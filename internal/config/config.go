@@ -6,14 +6,14 @@ import (
 )
 
 type Config struct {
-	Crawl4AIBaseURL string
+	Crawl4AIAPIURL string
 	ListenAddr     string
 	RequestTimeout time.Duration
 }
 
 func Load() *Config {
 	return &Config{
-		Crawl4AIBaseURL: getEnv("CRAWL4AI_BASE_URL", "http://localhost:11235"),
+		Crawl4AIAPIURL: getEnv("CRAWL4AI_API_URL", "http://localhost:11235"),
 		ListenAddr:     getEnv("LISTEN_ADDR", ":8080"),
 		RequestTimeout: parseDuration(getEnv("REQUEST_TIMEOUT", "150s")),
 	}
