@@ -91,6 +91,8 @@ type CrawlerConfig struct {
 
 type CrawlerParams struct {
 	DeepCrawlStrategy *DeepCrawlStrategy `json:"deep_crawl_strategy,omitempty"`
+	WaitUntil        string `json:"wait_until,omitempty"`
+	PageTimeout      int    `json:"page_timeout,omitempty"`
 }
 
 type DeepCrawlStrategy struct {
