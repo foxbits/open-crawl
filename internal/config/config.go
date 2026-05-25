@@ -13,7 +13,7 @@ type Config struct {
 
 func Load() *Config {
 	return &Config{
-		Crawl4AIAPIURL: getEnv("CRAWL4AI_API_URL", "http://localhost:11235"),
+		Crawl4AIAPIURL: getEnv("CRAWL4AI_API_URL", "http://crawl4ai:11235"),
 		ListenAddr:     getEnv("LISTEN_ADDR", ":8080"),
 		RequestTimeout: parseDuration(getEnv("REQUEST_TIMEOUT", "150s")),
 	}

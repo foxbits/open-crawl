@@ -21,7 +21,7 @@ func main() {
 	mux.Handle("/health", healthHandler)
 
 	log.Printf("Starting Open Crawl Proxy on %s", cfg.ListenAddr)
-	log.Printf("Crawl4AI base URL: %s", cfg.Crawl4AIAPIURL)
+	log.Printf("Crawl4AI API URL: %s", cfg.Crawl4AIAPIURL)
 
 	if err := http.ListenAndServe(cfg.ListenAddr, mux); err != nil {
 		log.Fatalf("Server failed: %v", err)
