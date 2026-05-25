@@ -8,7 +8,10 @@ func TavilyRequestToCrawl4AI(req TavilyCrawlRequest) Crawl4AIRequestBody {
 	body := Crawl4AIRequestBody{
 		URLs: []string{req.URL},
 		CrawlerConfig: CrawlerConfig{
-			Params: CrawlerParams{},
+			Params: CrawlerParams{
+				WaitUntil:   "networkidle",
+				PageTimeout: 60000,
+			},
 		},
 	}
 
@@ -145,7 +148,10 @@ func TavilyExtractRequestToCrawl4AI(req TavilyExtractRequest, urls []string) Cra
 	body := Crawl4AIRequestBody{
 		URLs: urls,
 		CrawlerConfig: CrawlerConfig{
-			Params: CrawlerParams{},
+			Params: CrawlerParams{
+				WaitUntil:   "networkidle",
+				PageTimeout: 60000,
+			},
 		},
 	}
 
