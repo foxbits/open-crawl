@@ -10,13 +10,17 @@ import (
 )
 
 type ExtractHandler struct {
-	*BaseHandler
+	HandlerConfig
 }
 
 func NewExtractHandler(crawl4aiBaseURL string, timeout time.Duration) *ExtractHandler {
 	return &ExtractHandler{
-		BaseHandler: NewBaseHandler(crawl4aiBaseURL, timeout),
+		HandlerConfig: NewHandlerConfig(crawl4aiBaseURL, timeout),
 	}
+}
+
+func (h *ExtractHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	ServeHTTP(h, w, r)
 }
 
 func (h *ExtractHandler) path() string {
@@ -27,7 +31,7 @@ func (h *ExtractHandler) operationName() string {
 	return "Extract"
 }
 
-func (h *ExtractHandler) getRequestValidator() requestValidator {
+func (h *ExtractHandler) getRequestValidator() func(*http.Request) (interface{}, error) {
 	return func(r *http.Request) (interface{}, error) {
 		var req TavilyExtractRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -54,7 +58,7 @@ func (h *ExtractHandler) transformRequest(reqInterface interface{}) (Crawl4AIReq
 
 func (h *ExtractHandler) getTimeout(reqInterface interface{}) time.Duration {
 	data := reqInterface.(*extractRequestData)
-	timeout := h.httpClient.Timeout
+	timeout := h.getClient().Timeout
 	if data.req.Timeout > 0 && time.Duration(data.req.Timeout)*time.Second < timeout {
 		timeout = time.Duration(data.req.Timeout) * time.Second
 	}
@@ -62,7 +66,6 @@ func (h *ExtractHandler) getTimeout(reqInterface interface{}) time.Duration {
 }
 
 func (h *ExtractHandler) processStreamResults(resp *http.Response, reqInterface interface{}) ([]TavilyResult, []FailedResult) {
-	_ = reqInterface.(*extractRequestData)
 	var results []TavilyResult
 	var failedResults []FailedResult
 	scanner := bufio.NewScanner(resp.Body)
@@ -82,13 +85,10 @@ func (h *ExtractHandler) processStreamResults(resp *http.Response, reqInterface 
 			continue
 		}
 
-		log.Printf("DEBUG extract crawl4ai result streamed: url=%q success=%v completed=%q error=%q", c4Result.URL, c4Result.Success, c4Result.Status, c4Result.ErrorMessage)
+		log.Printf("DEBUG Extract crawl4ai result streamed: url=%q success=%v completed=%q error=%q", c4Result.URL, c4Result.Success, c4Result.Status, c4Result.ErrorMessage)
 
-		if !c4Result.Success && c4Result.Status != "completed" {
-			failedResults = append(failedResults, FailedResult{
-				URL:   c4Result.URL,
-				Error: c4Result.ErrorMessage,
-			})
+if !c4Result.Success && c4Result.Status != "completed" {
+			handleFailedResult(h, c4Result)
 			continue
 		}
 
@@ -106,11 +106,6 @@ func (h *ExtractHandler) processStreamResults(resp *http.Response, reqInterface 
 func (h *ExtractHandler) transformResult(c4Result Crawl4AIStreamResult, reqInterface interface{}) TavilyResult {
 	data := reqInterface.(*extractRequestData)
 	return TransformCrawl4AIResult(c4Result, data.req.IncludeFavicon, data.req.IncludeImages)
-}
-
-func (h *ExtractHandler) logCompletion(requestID string, reqInterface interface{}, resultCount, failedCount int, elapsed time.Duration) {
-	log.Printf("[DEBUG] Extract completed: requestID=%s results=%d failed=%d elapsed_ms=%d",
-		requestID, resultCount, failedCount, elapsed.Milliseconds())
 }
 
 func (h *ExtractHandler) writeResponse(w http.ResponseWriter, reqInterface interface{}, results []TavilyResult, failedResults []FailedResult, elapsed time.Duration, requestID string) {
