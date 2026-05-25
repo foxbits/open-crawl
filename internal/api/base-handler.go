@@ -1,6 +1,7 @@
 package api
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"io"
@@ -38,14 +39,6 @@ func (c HandlerConfig) getTimeout(req interface{}) time.Duration {
 	return c.client.Timeout
 }
 
-func handleFailedResult(h Handler, c4Result Crawl4AIStreamResult) {
-	url := c4Result.URL
-	if url == "" {
-		url = "(unknown URL)"
-	}
-	log.Printf("%s failed for %s: %s", h.operationName(), url, c4Result.ErrorMessage)
-}
-
 func logCompletion(h Handler, requestID string, resultCount, failedCount int, elapsed time.Duration) {
 	log.Printf("[DEBUG] %s completed: requestID=%s results=%d failed=%d elapsed_ms=%d",
 		h.operationName(), requestID, resultCount, failedCount, elapsed.Milliseconds())
@@ -59,9 +52,56 @@ type Handler interface {
 	getRequestValidator() func(*http.Request) (interface{}, error)
 	transformRequest(req interface{}) (Crawl4AIRequestBody, []string)
 	getTimeout(req interface{}) time.Duration
-	processStreamResults(resp *http.Response, req interface{}) ([]TavilyResult, []FailedResult)
 	transformResult(c4Result Crawl4AIStreamResult, req interface{}) TavilyResult
 	writeResponse(w http.ResponseWriter, req interface{}, results []TavilyResult, failedResults []FailedResult, elapsed time.Duration, requestID string)
+}
+
+func processStreamResults(h Handler, resp *http.Response, req interface{}) ([]TavilyResult, []FailedResult) {
+	var results []TavilyResult
+	var failedResults []FailedResult
+	scanner := bufio.NewScanner(resp.Body)
+	buf := make([]byte, 0, 64*1024)
+	scanner.Buffer(buf, 10*1024*1024)
+	scanner.Split(bufio.ScanLines)
+
+	for scanner.Scan() {
+		line := scanner.Bytes()
+		if len(line) == 0 {
+			continue
+		}
+
+		var c4Result Crawl4AIStreamResult
+		if err := json.Unmarshal(line, &c4Result); err != nil {
+			log.Printf("Warning: failed to parse NDJSON line: %v", err)
+			continue
+		}
+
+		log.Printf("DEBUG %s crawl4ai result streamed: url=%q success=%v completed=%q error=%q", h.operationName(), c4Result.URL, c4Result.Success, c4Result.Status, c4Result.ErrorMessage)
+
+		if !c4Result.Success && c4Result.Status != "completed" {
+			url := c4Result.URL
+			if url == "" {
+				url = "(unknown URL)"
+			}
+			log.Printf("%s failed for %s: %s", h.operationName(), url, c4Result.ErrorMessage)
+			failedResults = append(failedResults, FailedResult{
+				URL:   c4Result.URL,
+				Error: c4Result.ErrorMessage,
+			})
+			continue
+		}
+
+		tavilyResult := h.transformResult(c4Result, req)
+		if tavilyResult.URL != "" || tavilyResult.RawContent != "" {
+			results = append(results, tavilyResult)
+		}
+	}
+
+	if err := scanner.Err(); err != nil && err != io.EOF {
+		log.Printf("Warning: scanner error: %v", err)
+	}
+
+	return results, failedResults
 }
 
 func ServeHTTP(h Handler, w http.ResponseWriter, r *http.Request) {
@@ -129,7 +169,7 @@ func handleRequest(h Handler, w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	results, failedResults := h.processStreamResults(resp, req)
+	results, failedResults := processStreamResults(h, resp, req)
 
 	elapsed := time.Since(startTime)
 	logCompletion(h, requestID, len(results), len(failedResults), elapsed)

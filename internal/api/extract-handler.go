@@ -1,10 +1,7 @@
 package api
 
 import (
-	"bufio"
 	"encoding/json"
-	"io"
-	"log"
 	"net/http"
 	"time"
 )
@@ -63,44 +60,6 @@ func (h *ExtractHandler) getTimeout(reqInterface interface{}) time.Duration {
 		timeout = time.Duration(data.req.Timeout) * time.Second
 	}
 	return timeout
-}
-
-func (h *ExtractHandler) processStreamResults(resp *http.Response, reqInterface interface{}) ([]TavilyResult, []FailedResult) {
-	var results []TavilyResult
-	var failedResults []FailedResult
-	scanner := bufio.NewScanner(resp.Body)
-	buf := make([]byte, 0, 64*1024)
-	scanner.Buffer(buf, 10*1024*1024)
-	scanner.Split(bufio.ScanLines)
-
-	for scanner.Scan() {
-		line := scanner.Bytes()
-		if len(line) == 0 {
-			continue
-		}
-
-		var c4Result Crawl4AIStreamResult
-		if err := json.Unmarshal(line, &c4Result); err != nil {
-			log.Printf("Warning: failed to parse NDJSON line: %v", err)
-			continue
-		}
-
-		log.Printf("DEBUG Extract crawl4ai result streamed: url=%q success=%v completed=%q error=%q", c4Result.URL, c4Result.Success, c4Result.Status, c4Result.ErrorMessage)
-
-if !c4Result.Success && c4Result.Status != "completed" {
-			handleFailedResult(h, c4Result)
-			continue
-		}
-
-		tavilyResult := h.transformResult(c4Result, reqInterface)
-		results = append(results, tavilyResult)
-	}
-
-	if err := scanner.Err(); err != nil && err != io.EOF {
-		log.Printf("Warning: scanner error: %v", err)
-	}
-
-	return results, failedResults
 }
 
 func (h *ExtractHandler) transformResult(c4Result Crawl4AIStreamResult, reqInterface interface{}) TavilyResult {
