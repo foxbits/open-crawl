@@ -8,12 +8,14 @@ import (
 
 type HealthHandler struct {
 	crawl4aiBaseURL string
+	apiToken        string
 	httpClient      *http.Client
 }
 
-func NewHealthHandler(crawl4aiBaseURL string, timeout time.Duration) *HealthHandler {
+func NewHealthHandler(crawl4aiBaseURL, apiToken string, timeout time.Duration) *HealthHandler {
 	return &HealthHandler{
 		crawl4aiBaseURL: crawl4aiBaseURL,
+		apiToken:        apiToken,
 		httpClient: &http.Client{
 			Timeout: timeout,
 		},
@@ -48,6 +50,9 @@ func (h *HealthHandler) handleHealth(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusServiceUnavailable)
 		json.NewEncoder(w).Encode(response)
 		return
+	}
+	if h.apiToken != "" {
+		httpReq.Header.Set("Authorization", "Bearer "+h.apiToken)
 	}
 
 	resp, err := h.httpClient.Do(httpReq)

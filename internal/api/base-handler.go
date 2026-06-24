@@ -14,13 +14,15 @@ import (
 )
 
 type HandlerConfig struct {
-	baseURL string
-	client  *http.Client
+	baseURL  string
+	apiToken string
+	client   *http.Client
 }
 
-func NewHandlerConfig(crawl4aiBaseURL string, timeout time.Duration) HandlerConfig {
+func NewHandlerConfig(crawl4aiBaseURL, apiToken string, timeout time.Duration) HandlerConfig {
 	return HandlerConfig{
-		baseURL: crawl4aiBaseURL,
+		baseURL:  crawl4aiBaseURL,
+		apiToken: apiToken,
 		client: &http.Client{
 			Timeout: timeout,
 		},
@@ -29,6 +31,10 @@ func NewHandlerConfig(crawl4aiBaseURL string, timeout time.Duration) HandlerConf
 
 func (c HandlerConfig) getBaseURL() string {
 	return c.baseURL
+}
+
+func (c HandlerConfig) getAPIToken() string {
+	return c.apiToken
 }
 
 func (c HandlerConfig) getClient() *http.Client {
@@ -46,6 +52,7 @@ func logCompletion(h Handler, requestID string, resultCount, failedCount int, el
 
 type Handler interface {
 	getBaseURL() string
+	getAPIToken() string
 	getClient() *http.Client
 	path() string
 	operationName() string
@@ -151,6 +158,9 @@ func handleRequest(h Handler, w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
+	if token := h.getAPIToken(); token != "" {
+		httpReq.Header.Set("Authorization", "Bearer "+token)
+	}
 
 	resp, err := h.getClient().Do(httpReq)
 	if err != nil {
