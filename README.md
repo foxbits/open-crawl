@@ -8,7 +8,10 @@ A drop-in Go proxy for Tavily's `POST /crawl` endpoint. It forwards requests to 
 
 ```bash
 docker build -t foxbits/open-crawl .
-docker run -p 8080:8080 -e CRAWL4AI_API_URL=http://host.docker.internal:11235 open-crawl
+docker run -p 8080:8080 \
+  -e CRAWL4AI_API_URL=http://host.docker.internal:11235 \
+  -e CRAWL4AI_API_TOKEN="$(openssl rand -hex 32)" \
+  open-crawl
 ```
 
 ## Configuration
@@ -16,6 +19,7 @@ docker run -p 8080:8080 -e CRAWL4AI_API_URL=http://host.docker.internal:11235 op
 | Environment Variable | Default | Description |
 |---|---|---|
 | `CRAWL4AI_API_URL` | `http://localhost:11235` | Crawl4AI REST API base URL |
+| `CRAWL4AI_API_TOKEN` | — | Bearer token sent as `Authorization: Bearer <token>` on every request to Crawl4AI. Required by the hardened Crawl4AI Docker server; leave unset for older unauthenticated servers. |
 | `LISTEN_ADDR` | `:8080` | Proxy HTTP listen address |
 | `REQUEST_TIMEOUT` | `150s` | Maximum time for a single crawl |
 

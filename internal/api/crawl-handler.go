@@ -10,9 +10,9 @@ type CrawlHandler struct {
 	HandlerConfig
 }
 
-func NewCrawlHandler(crawl4aiBaseURL string, timeout time.Duration) *CrawlHandler {
+func NewCrawlHandler(crawl4aiBaseURL, apiToken string, timeout time.Duration) *CrawlHandler {
 	return &CrawlHandler{
-		HandlerConfig: NewHandlerConfig(crawl4aiBaseURL, timeout),
+		HandlerConfig: NewHandlerConfig(crawl4aiBaseURL, apiToken, timeout),
 	}
 }
 

@@ -10,9 +10,9 @@ type ExtractHandler struct {
 	HandlerConfig
 }
 
-func NewExtractHandler(crawl4aiBaseURL string, timeout time.Duration) *ExtractHandler {
+func NewExtractHandler(crawl4aiBaseURL, apiToken string, timeout time.Duration) *ExtractHandler {
 	return &ExtractHandler{
-		HandlerConfig: NewHandlerConfig(crawl4aiBaseURL, timeout),
+		HandlerConfig: NewHandlerConfig(crawl4aiBaseURL, apiToken, timeout),
 	}
 }
 
