@@ -74,24 +74,12 @@ func processStreamResults(h Handler, resp *http.Response, req interface{}) ([]Ta
 		if len(line) > 0 {
 			trimmed := bytes.TrimRight(line, "\r\n")
 			if len(trimmed) == 0 {
-				if err != nil {
-					if err != io.EOF {
-						log.Printf("Warning: stream read error: %v", err)
-					}
-					break
-				}
 				continue
 			}
 
 			var c4Result Crawl4AIStreamResult
 			if jerr := json.Unmarshal(trimmed, &c4Result); jerr != nil {
 				log.Printf("Warning: failed to parse NDJSON line: %v", jerr)
-				if err != nil {
-					if err != io.EOF {
-						log.Printf("Warning: stream read error: %v", err)
-					}
-					break
-				}
 				continue
 			}
 
@@ -107,12 +95,6 @@ func processStreamResults(h Handler, resp *http.Response, req interface{}) ([]Ta
 					URL:   c4Result.URL,
 					Error: c4Result.ErrorMessage,
 				})
-				if err != nil {
-					if err != io.EOF {
-						log.Printf("Warning: stream read error: %v", err)
-					}
-					break
-				}
 				continue
 			}
 
@@ -125,6 +107,7 @@ func processStreamResults(h Handler, resp *http.Response, req interface{}) ([]Ta
 			if err != io.EOF {
 				log.Printf("Warning: stream read error: %v", err)
 			}
+			break
 		}
 	}
 
