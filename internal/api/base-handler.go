@@ -2,6 +2,7 @@ package api
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"io"
@@ -64,48 +65,50 @@ type Handler interface {
 }
 
 func processStreamResults(h Handler, resp *http.Response, req interface{}) ([]TavilyResult, []FailedResult) {
-	var results []TavilyResult
-	var failedResults []FailedResult
-	scanner := bufio.NewScanner(resp.Body)
-	buf := make([]byte, 0, 64*1024)
-	scanner.Buffer(buf, 10*1024*1024)
-	scanner.Split(bufio.ScanLines)
+	results := make([]TavilyResult, 0)
+	failedResults := make([]FailedResult, 0)
+	reader := bufio.NewReaderSize(resp.Body, 64*1024)
 
-	for scanner.Scan() {
-		line := scanner.Bytes()
-		if len(line) == 0 {
-			continue
-		}
-
-		var c4Result Crawl4AIStreamResult
-		if err := json.Unmarshal(line, &c4Result); err != nil {
-			log.Printf("Warning: failed to parse NDJSON line: %v", err)
-			continue
-		}
-
-		log.Printf("DEBUG %s crawl4ai result streamed: url=%q success=%v completed=%q error=%q", h.operationName(), c4Result.URL, c4Result.Success, c4Result.Status, c4Result.ErrorMessage)
-
-		if !c4Result.Success && c4Result.Status != "completed" {
-			url := c4Result.URL
-			if url == "" {
-				url = "(unknown URL)"
+	for {
+		line, err := reader.ReadBytes('\n')
+		if len(line) > 0 {
+			trimmed := bytes.TrimRight(line, "\r\n")
+			if len(trimmed) == 0 {
+				continue
 			}
-			log.Printf("%s failed for %s: %s", h.operationName(), url, c4Result.ErrorMessage)
-			failedResults = append(failedResults, FailedResult{
-				URL:   c4Result.URL,
-				Error: c4Result.ErrorMessage,
-			})
-			continue
-		}
 
-		tavilyResult := h.transformResult(c4Result, req)
-		if tavilyResult.URL != "" || tavilyResult.RawContent != "" {
-			results = append(results, tavilyResult)
-		}
-	}
+			var c4Result Crawl4AIStreamResult
+			if jerr := json.Unmarshal(trimmed, &c4Result); jerr != nil {
+				log.Printf("Warning: failed to parse NDJSON line: %v", jerr)
+				continue
+			}
 
-	if err := scanner.Err(); err != nil && err != io.EOF {
-		log.Printf("Warning: scanner error: %v", err)
+			log.Printf("DEBUG %s crawl4ai result streamed: url=%q success=%v completed=%q error=%q", h.operationName(), c4Result.URL, c4Result.Success, c4Result.Status, c4Result.ErrorMessage)
+
+			if !c4Result.Success && c4Result.Status != "completed" {
+				url := c4Result.URL
+				if url == "" {
+					url = "(unknown URL)"
+				}
+				log.Printf("%s failed for %s: %s", h.operationName(), url, c4Result.ErrorMessage)
+				failedResults = append(failedResults, FailedResult{
+					URL:   c4Result.URL,
+					Error: c4Result.ErrorMessage,
+				})
+				continue
+			}
+
+			tavilyResult := h.transformResult(c4Result, req)
+			if tavilyResult.URL != "" || tavilyResult.RawContent != "" {
+				results = append(results, tavilyResult)
+			}
+		}
+		if err != nil {
+			if err != io.EOF {
+				log.Printf("Warning: stream read error: %v", err)
+			}
+			break
+		}
 	}
 
 	return results, failedResults
